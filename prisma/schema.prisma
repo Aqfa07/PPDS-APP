@@ -1,0 +1,174 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  calon_peserta
+  admin_prodi
+  admin_fakultas
+}
+
+enum StatusPendaftaran {
+  draft
+  submitted
+  verifikasi_berkas
+  verifikasi_pembayaran
+  lulus_administrasi
+  lulus_ujian
+  lulus_final
+  ditolak
+}
+
+enum JenisDokumen {
+  KTP
+  IJAZAH_PROFESI
+  TRANSKRIP_NILAI
+  STR
+  SURAT_REKOMENDASI
+  SURAT_IZIN_INSTITUSI
+  FOTO
+  BUKTI_BAYAR
+  DOKUMEN_LAINNYA
+}
+
+enum StatusValidasi {
+  menunggu
+  valid
+  ditolak
+}
+
+model User {
+  id            String    @id @default(uuid()) @db.Uuid
+  email         String    @unique
+  password_hash String
+  full_name     String?
+  role          Role      @default(calon_peserta)
+  is_active     Boolean   @default(true)
+  avatar_url    String?
+  created_at    DateTime  @default(now()) @db.Timestamptz
+  updated_at    DateTime  @updatedAt @db.Timestamptz
+  deleted_at    DateTime? @db.Timestamptz
+
+  biodata       BiodataPeserta?
+  pendaftaran   Pendaftaran[]
+  dokumenDivalidasi DokumenPeserta[] @relation("Validator")
+  logAktivitas  LogAktivitas[]
+
+  @@map("users")
+}
+
+model BiodataPeserta {
+  id               String    @id @default(uuid()) @db.Uuid
+  user_id          String    @unique @db.Uuid
+  nik              String?   @unique @db.Char(16)
+  nama_lengkap     String
+  tempat_lahir     String?
+  tanggal_lahir    DateTime? @db.Date
+  jenis_kelamin    String?   // 'L' | 'P'
+  no_hp            String?
+  alamat           String?
+  provinsi         String?
+  kota             String?
+  kode_pos         String?
+  asal_institusi   String
+  gelar_depan      String?
+  gelar_belakang   String?
+  no_str           String?
+  masa_berlaku_str DateTime? @db.Date
+  created_at       DateTime  @default(now()) @db.Timestamptz
+  updated_at       DateTime  @updatedAt @db.Timestamptz
+
+  user             User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("biodata_peserta")
+}
+
+model ProgramStudi {
+  id                 String    @id @default(uuid()) @db.Uuid
+  kode_prodi         String    @unique
+  nama_prodi         String
+  nama_singkat       String?
+  deskripsi          String?
+  kuota              Int       @default(0)
+  kuota_terisi       Int       @default(0)
+  periode_buka       DateTime  @db.Date
+  periode_tutup      DateTime  @db.Date
+  biaya_pendaftaran  Decimal   @default(0) @db.Decimal(12, 2)
+  persyaratan_khusus String?
+  is_active          Boolean   @default(true)
+  created_at         DateTime  @default(now()) @db.Timestamptz
+  updated_at         DateTime  @updatedAt @db.Timestamptz
+
+  pendaftaran        Pendaftaran[]
+
+  @@map("program_studi")
+}
+
+model Pendaftaran {
+  id                 String            @id @default(uuid()) @db.Uuid
+  user_id            String            @db.Uuid
+  program_studi_id   String            @db.Uuid
+  status             StatusPendaftaran @default(draft)
+  nomor_pendaftaran  String?           @unique
+  catatan_admin      String?
+  tanggal_submit     DateTime?         @db.Timestamptz
+  tanggal_verifikasi DateTime?         @db.Timestamptz
+  tanggal_kelulusan  DateTime?         @db.Timestamptz
+  created_at         DateTime          @default(now()) @db.Timestamptz
+  updated_at         DateTime          @updatedAt @db.Timestamptz
+  deleted_at         DateTime?         @db.Timestamptz
+
+  user               User              @relation(fields: [user_id], references: [id], onDelete: Restrict)
+  program_studi      ProgramStudi      @relation(fields: [program_studi_id], references: [id], onDelete: Restrict)
+  dokumen_peserta    DokumenPeserta[]
+
+  @@unique([user_id, program_studi_id], name: "unique_active_pendaftaran")
+  @@map("pendaftaran")
+}
+
+model DokumenPeserta {
+  id                 String         @id @default(uuid()) @db.Uuid
+  pendaftaran_id     String         @db.Uuid
+  jenis_dokumen      JenisDokumen
+  nama_file          String
+  storage_path       String
+  ukuran_file        Int?
+  mime_type          String?        @default("application/pdf")
+  status_validasi    StatusValidasi @default(menunggu)
+  catatan_validasi   String?
+  divalidasi_oleh    String?        @db.Uuid
+  divalidasi_pada    DateTime?      @db.Timestamptz
+  created_at         DateTime       @default(now()) @db.Timestamptz
+  updated_at         DateTime       @updatedAt @db.Timestamptz
+
+  pendaftaran        Pendaftaran    @relation(fields: [pendaftaran_id], references: [id], onDelete: Cascade)
+  validator          User?          @relation("Validator", fields: [divalidasi_oleh], references: [id], onDelete: SetNull)
+
+  @@unique([pendaftaran_id, jenis_dokumen], name: "unique_dokumen_per_pendaftaran")
+  @@map("dokumen_peserta")
+}
+
+model LogAktivitas {
+  id                 String    @id @default(uuid()) @db.Uuid
+  aktor_id           String?   @db.Uuid
+  target_tabel       String
+  target_id          String    @db.Uuid
+  aksi               String
+  nilai_lama         Json?     @db.JsonB
+  nilai_baru         Json?     @db.JsonB
+  ip_address         String?   @db.Inet
+  user_agent         String?
+  keterangan         String?
+  created_at         DateTime  @default(now()) @db.Timestamptz
+
+  aktor              User?     @relation(fields: [aktor_id], references: [id], onDelete: SetNull)
+
+  @@map("log_aktivitas")
+}
