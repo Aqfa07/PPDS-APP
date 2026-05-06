@@ -114,9 +114,13 @@ export default function LoginPage() {
             <div>
               <div className="flex justify-between items-center mb-1.5">
                 <label className="label mb-0" htmlFor="password">Password</label>
-                <Link href="/forgot-password" className="text-xs text-emerald-600 hover:underline font-medium">
+                <button 
+                  type="button"
+                  onClick={() => toast.info('Fitur Lupa Password dinonaktifkan pada versi demo. Silakan hubungi Admin.')} 
+                  className="text-xs text-emerald-600 hover:underline font-medium"
+                >
                   Lupa password?
-                </Link>
+                </button>
               </div>
               <div className="relative">
                 <input
